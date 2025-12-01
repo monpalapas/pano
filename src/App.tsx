@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import ImageGallery from './components/ImageGallery';
 import PanoramaGallery from './components/PanoramaGallery';
+import InteractiveMap from './components/InteractiveMap';
 import { driveFolders } from './config/driveFolders';
 
 function App() {
@@ -21,6 +22,10 @@ function App() {
   };
 
   const renderContent = () => {
+    if (activeView === 'interactive') {
+      return <InteractiveMap />;
+    }
+
     const folder = driveFolders[activeView];
     if (folder) {
       if (activeView === 'panorama') {
