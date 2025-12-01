@@ -100,6 +100,11 @@ export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
     document.body.removeChild(link);
   };
 
+  // Function to extract clean filename without extension
+  const getCleanFilename = (filename: string) => {
+    return filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ');
+  };
+
   return (
     <div className="w-full h-full bg-white/40 backdrop-blur-md rounded-3xl shadow-2xl p-8 border border-white/50">
       <div className="mb-6">
@@ -143,10 +148,16 @@ export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                 <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
                   <span className="text-white font-semibold text-sm truncate">
-                    {image.name}
+                    {getCleanFilename(image.name)}
                   </span>
                   <ZoomIn className="w-5 h-5 text-white flex-shrink-0 ml-2" />
                 </div>
+              </div>
+              {/* Title at the bottom of the grid view */}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-3">
+                <h3 className="text-white font-semibold text-sm truncate text-center">
+                  {getCleanFilename(image.name)}
+                </h3>
               </div>
             </div>
           ))}
@@ -197,7 +208,9 @@ export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
               alt={selectedImage.name}
               className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
             />
-            <p className="text-white text-center mt-4 font-medium">{selectedImage.name}</p>
+            <p className="text-white text-center mt-4 font-medium bg-black/50 px-4 py-2 rounded-lg">
+              {getCleanFilename(selectedImage.name)}
+            </p>
           </div>
         </div>
       )}
