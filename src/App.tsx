@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import ImageGallery from './components/ImageGallery';
+import PanoramaGallery from './components/PanoramaGallery';
 import { driveFolders } from './config/driveFolders';
 
 function App() {
@@ -22,6 +23,9 @@ function App() {
   const renderContent = () => {
     const folder = driveFolders[activeView];
     if (folder) {
+      if (activeView === 'panorama') {
+        return <PanoramaGallery folderId={folder.folderId} title={folder.title} />;
+      }
       return <ImageGallery folderId={folder.folderId} title={folder.title} />;
     }
     return (
