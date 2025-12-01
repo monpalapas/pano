@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Loader2, ZoomIn, X } from 'lucide-react';
+import { Loader2, ZoomIn, X, AlertCircle } from 'lucide-react';
+
+interface ImageData {
+  id: string;
+  name: string;
+  url: string;
+  thumbnailUrl: string;
+  viewUrl: string;
+}
 
 interface ImageGalleryProps {
   folderId: string;
@@ -7,29 +15,50 @@ interface ImageGalleryProps {
 }
 
 export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<ImageData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<ImageData | null>(null);
 
   useEffect(() => {
     const fetchImages = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const placeholderImages = [
-          'https://images.pexels.com/photos/2662116/pexels-photo-2662116.jpeg',
-          'https://images.pexels.com/photos/1525041/pexels-photo-1525041.jpeg',
-          'https://images.pexels.com/photos/346529/pexels-photo-346529.jpeg',
-          'https://images.pexels.com/photos/2662875/pexels-photo-2662875.jpeg',
-          'https://images.pexels.com/photos/1002703/pexels-photo-1002703.jpeg',
-          'https://images.pexels.com/photos/2088205/pexels-photo-2088205.jpeg',
-          'https://images.pexels.com/photos/3408744/pexels-photo-3408744.jpeg',
-          'https://images.pexels.com/photos/1433052/pexels-photo-1433052.jpeg',
-        ];
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setImages(placeholderImages);
-      } catch (error) {
-        console.error('Error loading images:', error);
+        if (!supabaseUrl || !anonKey) {
+          throw new Error('Supabase configuration missing');
+        }
+
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/fetch-drive-images?folderId=${encodeURIComponent(folderId)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${anonKey}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch images: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.images) {
+          setImages(data.images);
+        } else {
+          setError(data.error || 'Failed to fetch images');
+          setImages([]);
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        console.error('Error loading images:', errorMessage);
+        setError(errorMessage);
         setImages([]);
       } finally {
         setLoading(false);
@@ -39,8 +68,8 @@ export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
     fetchImages();
   }, [folderId]);
 
-  const openImageModal = (imageUrl: string) => {
-    setSelectedImage(imageUrl);
+  const openImageModal = (image: ImageData) => {
+    setSelectedImage(image);
   };
 
   const closeImageModal = () => {
@@ -58,42 +87,46 @@ export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <Loader2 className="w-12 h-12 text-sky-500 animate-spin mx-auto mb-4" />
-            <p className="text-[#1a1a2e]/70 font-medium">Loading images...</p>
+            <p className="text-[#1a1a2e]/70 font-medium">Loading images from Google Drive...</p>
           </div>
         </div>
+      ) : error ? (
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center max-w-md">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <p className="text-[#1a1a2e] font-semibold mb-2">Error Loading Images</p>
+            <p className="text-[#1a1a2e]/70 text-sm">{error}</p>
+          </div>
+        </div>
+      ) : images.length === 0 ? (
+        <div className="flex items-center justify-center h-96">
+          <p className="text-[#1a1a2e]/70 font-medium text-lg">No images found in this folder</p>
+        </div>
       ) : (
-        <>
-          {images.length === 0 ? (
-            <div className="flex items-center justify-center h-96">
-              <p className="text-[#1a1a2e]/70 font-medium text-lg">No images found in this folder</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {images.map((imageUrl, index) => (
-                <div
-                  key={index}
-                  className="group relative aspect-square rounded-2xl overflow-hidden bg-white/60 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2"
-                  onClick={() => openImageModal(imageUrl)}
-                >
-                  <img
-                    src={imageUrl}
-                    alt={`${title} ${index + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
-                      <span className="text-white font-semibold text-sm">
-                        Image {index + 1}
-                      </span>
-                      <ZoomIn className="w-5 h-5 text-white" />
-                    </div>
-                  </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {images.map((image) => (
+            <div
+              key={image.id}
+              className="group relative aspect-square rounded-2xl overflow-hidden bg-white/60 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2"
+              onClick={() => openImageModal(image)}
+            >
+              <img
+                src={image.thumbnailUrl}
+                alt={image.name}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
+                  <span className="text-white font-semibold text-sm truncate">
+                    {image.name}
+                  </span>
+                  <ZoomIn className="w-5 h-5 text-white flex-shrink-0 ml-2" />
                 </div>
-              ))}
+              </div>
             </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
 
       {selectedImage && (
@@ -107,12 +140,13 @@ export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
           >
             <X className="w-6 h-6 text-white" />
           </button>
-          <div className="max-w-7xl max-h-full" onClick={(e) => e.stopPropagation()}>
+          <div className="max-w-7xl max-h-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
             <img
-              src={selectedImage}
-              alt="Full size preview"
-              className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+              src={selectedImage.url}
+              alt={selectedImage.name}
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
             />
+            <p className="text-white text-center mt-4 font-medium">{selectedImage.name}</p>
           </div>
         </div>
       )}
