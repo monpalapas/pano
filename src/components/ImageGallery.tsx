@@ -132,11 +132,11 @@ export default function ImageGallery({ folderId, title }: ImageGalleryProps) {
           <p className="text-[#1a1a2e]/70 font-medium text-lg">No images found in this folder</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {images.map((image) => (
             <div
               key={image.id}
-              className="group relative aspect-square rounded-2xl overflow-hidden bg-white/60 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2"
+              className="group relative aspect-[16/9] rounded-2xl overflow-hidden bg-white/60 shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2"
               onClick={() => openImageModal(image)}
             >
               <img
