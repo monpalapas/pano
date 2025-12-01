@@ -25,148 +25,97 @@ const locations: Location[] = [
 ];
 
 export default function PanoramaViewer() {
-  const viewerContainer = useRef<HTMLDivElement>(null);
   const [selectedLocation, setSelectedLocation] = useState<string>(locations[0].id);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Transform state
+  const [zoom, setZoom] = useState<number>(1.2);
+  const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const pointerRef = useRef<{ id: number | null; lastX: number; lastY: number }>({ id: null, lastX: 0, lastY: 0 });
+
+  const currentLocation = locations.find((l) => l.id === selectedLocation)!;
+
   useEffect(() => {
-    if (!viewerContainer.current) return;
-
-    const currentLocation = locations.find(loc => loc.id === selectedLocation);
-    if (!currentLocation) return;
-
+    // Reset state when location changes
     setIsLoading(true);
     setError(null);
-
-    try {
-      // Clear previous content
-      viewerContainer.current.innerHTML = '';
-
-      // Create panorama viewer container
-      const viewerElement = document.createElement('div');
-      viewerElement.className = 'w-full h-full relative bg-gray-900 flex items-center justify-center';
-      
-      // Create interactive panorama simulation
-      viewerElement.innerHTML = `
-        <div class="absolute inset-0 overflow-hidden">
-          <img 
-            src="${currentLocation.imageUrl}" 
-            alt="${currentLocation.name} Panorama" 
-            class="w-full h-full object-cover transition-opacity duration-500"
-            style="transform: scale(1.2);"
-          />
-          <div class="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-        </div>
-        
-        <div class="absolute top-4 left-4 bg-black/50 text-white px-4 py-2 rounded-lg z-10">
-          <h3 class="font-bold text-lg">${currentLocation.name}</h3>
-        </div>
-        
-        <div class="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm z-10">
-          360° Panorama View
-        </div>
-        
-        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div class="text-white/30 text-center">
-            <div class="text-5xl mb-2">🔄</div>
-            <p class="text-lg">Drag to explore</p>
-          </div>
-        </div>
-      `;
-
-      // Add interactive behavior
-      let isDragging = false;
-      let startX = 0;
-      let startY = 0;
-      let translateX = 0;
-      let translateY = 0;
-      let currentTranslateX = 0;
-      let currentTranslateY = 0;
-
-      const imgElement = viewerElement.querySelector('img');
-      
-      if (imgElement) {
-        const startDrag = (e: MouseEvent | TouchEvent) => {
-          isDragging = true;
-          const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-          const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-          startX = clientX - translateX;
-          startY = clientY - translateY;
-          if (imgElement) {
-            imgElement.style.transition = 'none';
-          }
-        };
-
-        const drag = (e: MouseEvent | TouchEvent) => {
-          if (!isDragging) return;
-          e.preventDefault();
-          const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-          const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-          translateX = clientX - startX;
-          translateY = clientY - startY;
-          
-          // Limit movement
-          const maxMove = 200;
-          translateX = Math.max(-maxMove, Math.min(maxMove, translateX));
-          translateY = Math.max(-maxMove, Math.min(maxMove, translateY));
-          
-          currentTranslateX = translateX * 0.5;
-          currentTranslateY = translateY * 0.5;
-          
-          if (imgElement) {
-            imgElement.style.transform = `scale(1.2) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
-          }
-        };
-
-        const endDrag = () => {
-          isDragging = false;
-          if (imgElement) {
-            imgElement.style.transition = 'transform 0.3s ease';
-            imgElement.style.transform = 'scale(1.2)';
-            translateX = 0;
-            translateY = 0;
-          }
-        };
-
-        viewerElement.addEventListener('mousedown', startDrag);
-        viewerElement.addEventListener('touchstart', startDrag);
-        viewerElement.addEventListener('mousemove', drag);
-        viewerElement.addEventListener('touchmove', drag);
-        viewerElement.addEventListener('mouseup', endDrag);
-        viewerElement.addEventListener('touchend', endDrag);
-        viewerElement.addEventListener('mouseleave', endDrag);
-      }
-
-      viewerContainer.current.appendChild(viewerElement);
-      
-      // Simulate loading delay
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 600);
-    } catch (err) {
-      console.error('Error loading panorama:', err);
-      setError('Failed to load panorama view');
-      setIsLoading(false);
-    }
+    setZoom(1.2);
+    setOffset({ x: 0, y: 0 });
   }, [selectedLocation]);
 
-  const handleLocationChange = (locationId: string) => {
-    setSelectedLocation(locationId);
+  const clampOffset = (x: number, y: number) => {
+    const container = containerRef.current;
+    const img = imgRef.current;
+    if (!container || !img) return { x, y };
+
+    const cRect = container.getBoundingClientRect();
+    const maxX = Math.max(0, (img.naturalWidth * zoom - cRect.width) / 2);
+    const maxY = Math.max(0, (img.naturalHeight * zoom - cRect.height) / 2);
+
+    const clamp = (v: number, max: number) => Math.max(-max, Math.min(max, v));
+    return { x: clamp(x, maxX), y: clamp(y, maxY) };
   };
 
-  const currentLocation = locations.find(loc => loc.id === selectedLocation);
+  const handlePointerDown = (e: React.PointerEvent) => {
+    (e.target as Element).setPointerCapture(e.pointerId);
+    pointerRef.current = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (pointerRef.current.id !== e.pointerId) return;
+    const dx = e.clientX - pointerRef.current.lastX;
+    const dy = e.clientY - pointerRef.current.lastY;
+    pointerRef.current.lastX = e.clientX;
+    pointerRef.current.lastY = e.clientY;
+    setOffset((prev) => {
+      const next = { x: prev.x + dx, y: prev.y + dy };
+      return clampOffset(next.x, next.y);
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    try {
+      (e.target as Element).releasePointerCapture(e.pointerId);
+    } catch {}
+    pointerRef.current.id = null;
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = -e.deltaY / 500; // smooth zoom factor
+    setZoom((z) => {
+      const next = Math.max(1, Math.min(3, z + delta));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    // Ensure offset stays valid when zoom changes
+    setOffset((o) => clampOffset(o.x, o.y));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom]);
+
+  const onImgLoad = () => {
+    setIsLoading(false);
+  };
+
+  const onImgError = () => {
+    setIsLoading(false);
+    setError('Failed to load image');
+  };
 
   return (
     <div className="w-full h-full bg-white/40 backdrop-blur-md rounded-3xl shadow-2xl p-6 border border-white/50 flex flex-col">
       <div className="mb-4">
-        <label className="block text-[#1a1a2e] font-semibold mb-2 text-sm">
-          Select Location:
-        </label>
+        <label className="block text-[#1a1a2e] font-semibold mb-2 text-sm">Select Location:</label>
         <div className="relative">
           <select
             value={selectedLocation}
-            onChange={(e) => handleLocationChange(e.target.value)}
+            onChange={(e) => setSelectedLocation(e.target.value)}
             className="w-full px-4 py-3 rounded-xl bg-white/80 border-2 border-white/60 shadow-lg focus:outline-none focus:ring-2 focus:ring-sky-400 text-gray-700 font-medium transition-all appearance-none"
             disabled={isLoading}
           >
@@ -184,7 +133,10 @@ export default function PanoramaViewer() {
         </div>
       </div>
 
-      <div className="flex-1 rounded-2xl overflow-hidden shadow-inner bg-gray-900 relative">
+      <div
+        className="flex-1 rounded-2xl overflow-hidden shadow-inner bg-gray-900 relative"
+        onWheel={handleWheel}
+      >
         {isLoading && (
           <div className="absolute inset-0 bg-gray-900 flex items-center justify-center z-10">
             <div className="text-center">
@@ -193,15 +145,15 @@ export default function PanoramaViewer() {
             </div>
           </div>
         )}
-        
+
         {error && (
           <div className="absolute inset-0 bg-gray-900 flex items-center justify-center z-10">
             <div className="text-center p-6 bg-red-500/20 rounded-xl max-w-md">
               <div className="text-4xl mb-3">⚠️</div>
               <h3 className="text-xl font-bold text-white mb-2">Error Loading Panorama</h3>
               <p className="text-red-200 mb-4">{error}</p>
-              <button 
-                onClick={() => handleLocationChange(selectedLocation)}
+              <button
+                onClick={() => setSelectedLocation(selectedLocation)}
                 className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors"
               >
                 Retry
@@ -209,8 +161,49 @@ export default function PanoramaViewer() {
             </div>
           </div>
         )}
-        
-        <div ref={viewerContainer} className="w-full h-full min-h-[400px]"></div>
+
+        <div
+          ref={containerRef}
+          className="w-full h-full min-h-[400px] relative touch-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <div className="absolute inset-0 overflow-hidden">
+            <img
+              ref={imgRef}
+              src={currentLocation.imageUrl}
+              alt={`${currentLocation.name} Panorama`}
+              onLoad={onImgLoad}
+              onError={onImgError}
+              style={{
+                transform: `scale(${zoom}) translate(${offset.x}px, ${offset.y}px)`,
+                transformOrigin: 'center center',
+                transition: isLoading ? 'none' : 'transform 0.15s ease'
+              }}
+              className="w-full h-full object-cover will-change-transform"
+              draggable={false}
+            />
+
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+
+            <div className="absolute top-4 left-4 bg-black/50 text-white px-4 py-2 rounded-lg z-10">
+              <h3 className="font-bold text-lg">{currentLocation.name}</h3>
+            </div>
+
+            <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm z-10">
+              360° Panorama View
+            </div>
+
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-white/30 text-center">
+                <div className="text-5xl mb-2">🔄</div>
+                <p className="text-lg">Drag to explore</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">

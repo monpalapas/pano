@@ -4,6 +4,8 @@ import TopBar from './components/TopBar';
 import ImageGallery from './components/ImageGallery';
 import PanoramaGallery from './components/PanoramaGallery';
 import InteractiveMap from './components/InteractiveMap';
+import AdminPanel from './components/AdminPanel';
+import LoginPage from './components/LoginPage';
 import { driveFolders } from './config/driveFolders';
 
 function App() {
@@ -22,6 +24,14 @@ function App() {
   };
 
   const renderContent = () => {
+    if (activeView === 'login') {
+      return <LoginPage onNavigate={handleNavigate} onLogin={() => handleNavigate('admin')} />;
+    }
+
+    if (activeView === 'admin') {
+      return <AdminPanel onNavigate={handleNavigate} />;
+    }
+
     if (activeView === 'interactive') {
       return <InteractiveMap />;
     }

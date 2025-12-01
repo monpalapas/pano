@@ -94,9 +94,25 @@ export default function Sidebar({ activeView, onNavigate, isBoundaryOpen, onTogg
       </nav>
 
       <div className="p-4">
-        <button className="w-full py-3 px-4 rounded-lg bg-blue-400/50 text-white/80 font-light text-sm hover:bg-blue-400/70 transition-all italic">
-          + Add Button
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => onNavigate('login')}
+            className="w-full py-3 px-4 rounded-lg bg-white/90 text-[#000080] font-medium text-sm hover:bg-white hover:shadow-md transition-all"
+          >
+            LOGIN
+          </button>
+
+          <button
+            onClick={() => onNavigate('admin')}
+            className="w-full py-3 px-4 rounded-lg bg-white/90 text-[#000080] font-medium text-sm hover:bg-white hover:shadow-md transition-all"
+          >
+            ADMIN
+          </button>
+
+          <button className="w-full py-3 px-4 rounded-lg bg-blue-400/50 text-white/80 font-light text-sm hover:bg-blue-400/70 transition-all italic">
+            + Add Button
+          </button>
+        </div>
       </div>
     </div>
   );
