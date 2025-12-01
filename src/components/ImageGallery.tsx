@@ -1,5 +1,3 @@
-please enhance the code and make the grid view image size 200px by 131px:
-
 import { useState, useEffect } from 'react';
 import { Loader2, ZoomIn, X, AlertCircle, Copy, Download, Check } from 'lucide-react';
 
