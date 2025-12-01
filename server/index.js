@@ -50,6 +50,80 @@ app.get('/api/page', async (req, res) => {
   }
 });
 
+// Update page content by type
+app.put('/api/page/:type', async (req, res) => {
+  const { type } = req.params;
+  const { title, content } = req.body || {};
+  if (!title || !content) {
+    return res.status(400).json({ error: 'Missing `title` or `content` in request body' });
+  }
+
+  let client;
+  try {
+    client = getClient();
+    await client.connect();
+    const result = await client.query(
+      'UPDATE pages SET title = $1, content = $2, updated_at = NOW() WHERE type = $3 RETURNING *',
+      [title, content, type]
+    );
+    await client.end();
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: `Page type "${type}" not found` });
+    }
+
+    res.json({ success: true, page: result.rows[0] });
+  } catch (err) {
+    if (client) try { await client.end(); } catch {}
+    console.error('Update error', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Get all pages
+app.get('/api/pages', async (req, res) => {
+  let client;
+  try {
+    client = getClient();
+    await client.connect();
+    const result = await client.query('SELECT id, type, title, created_at, updated_at FROM pages ORDER BY type');
+    await client.end();
+    res.json({ success: true, pages: result.rows });
+  } catch (err) {
+    if (client) try { await client.end(); } catch {}
+    console.error('List pages error', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Get database info
+app.get('/api/db-info', async (req, res) => {
+  let client;
+  try {
+    client = getClient();
+    await client.connect();
+    const versionResult = await client.query('SELECT version()');
+    const tablesResult = await client.query(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+    );
+    await client.end();
+
+    const version = versionResult.rows[0].version.split(' ')[0];
+    const tables = tablesResult.rows.map(r => r.table_name);
+
+    res.json({
+      success: true,
+      version,
+      tables,
+      tableCount: tables.length
+    });
+  } catch (err) {
+    if (client) try { await client.end(); } catch {}
+    console.error('DB info error', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // Simple SQL query endpoint. POST preferred for longer queries.
 app.post('/api/query', async (req, res) => {
   const { sql, params } = req.body || {};
