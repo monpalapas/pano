@@ -12,12 +12,11 @@ import {
   MapPin, 
   Download,
   RotateCcw,
-  Info
+  Info,
+  FileText
 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet-easybutton';
-import 'leaflet-easybutton/src/easy-button.css';
 
 // Fix for missing marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -27,104 +26,465 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-interface KMLLayer {
+interface Layer {
   id: string;
   name: string;
   layer: L.LayerGroup;
   visible: boolean;
   color: string;
   fileName: string;
+  type: 'kml' | 'csv';
 }
 
-// Improved mock omnivore with better feature handling
-const mockOmnivore = {
-  kml: (url: string) => {
-    const layerGroup = L.layerGroup();
-    const eventHandlers: Record<string, Function[]> = {
-      ready: [],
-      error: []
-    };
+// CSV Data
+const csvData = `WKT,name,description
+"POINT (123.446605 13.03076)",SLTCFPDI,"SCHOOL (Private) 
 
-    // Simulate async loading
-    setTimeout(() => {
-      try {
-        // Create mock features with properties
-        const markers = [
-          L.marker([13.037063508747957, 123.45890718599736], { 
-            properties: { name: "Primary Location", description: "Main operational site" } 
-          }),
-          L.marker([13.1391, 123.7437], { 
-            properties: { name: "Secondary Site", description: "Backup facility" } 
-          })
-        ];
-        
-        const polyline = L.polyline(
-          [[13.037063508747957, 123.45890718599736], [13.1391, 123.7437]],
-          { 
-            color: '#3b82f6', 
-            weight: 3,
-            properties: { name: "Route Alpha", description: "Main transportation route" } 
-          }
-        );
-        
-        const polygon = L.polygon(
-          [[13.03, 123.45], [13.04, 123.45], [13.04, 123.46], [13.03, 123.46]],
-          { 
-            color: '#ef4444', 
-            weight: 2, 
-            fillColor: '#ef4444',
-            fillOpacity: 0.3,
-            properties: { name: "Exclusion Zone", description: "Restricted area" } 
-          }
-        );
+FID 0 
+Id 1 
+Evac_Code
+EvacCenter SLTCFPDI 
+Location 0 
+Capacity 190 
+Category SCHOOL
+Latitude 13.03076 
+Longitude 123.446605"
+"POINT (123.450466 13.037648)",West Coast College,"SCHOOL (Private) 
 
-        markers.forEach(marker => {
-          if (marker.options.properties) {
-            marker.bindPopup(`<b>${marker.options.properties.name}</b><br>${marker.options.properties.description}`);
-          }
-          layerGroup.addLayer(marker);
-        });
-        layerGroup.addLayer(polyline);
-        layerGroup.addLayer(polygon);
+FID 1 
+Id 2 
+Evac_Code 
+EvacCenter West Coast College 
+Location 0 
+Capacity 250 
+Category 0 
+Latitude 13.037648 
+Longitude 123.450466"
+"POINT (123.459913 13.066302)",PDNHS,"SCHOOL (Public) 
 
-        // Trigger ready event
-        eventHandlers.ready.forEach(handler => handler(layerGroup));
-      } catch (error) {
-        eventHandlers.error.forEach(handler => handler(error));
+FID 2 
+Id 3 
+Evac_Code 
+EvacCenter Pio Duran National High School 
+Location 0 
+Capacity 200 
+Category 0 
+Latitude 13.066302 
+Longitude 123.459913"
+"POINT (123.458171 13.061385)",Binodegahan ES,"SCHOOL (Public) 
+
+FID 3 
+Id 4 
+Evac_Code 
+EvacCenter Binodegahan Elementary School 
+Location 0 
+Capacity 200 
+Category 0 
+Latitude 13.061385 
+Longitude 123.458171"
+"POINT (123.45316 13.044291)",SLA,"SCHOOL (Public) 
+
+FID 4 
+Id 5 
+Evac_Code 
+EvacCenter San Lorenzo Academy 
+Location 0 
+Capacity 200 
+Category 0 
+Latitude 13.044291 
+Longitude 123.45316"
+"POINT (123.457286 13.044403)",PECS,"SCHOOL (Public) 
+
+FID 5 
+Id 6 
+Evac_Code 
+EvacCenter Pio Duran East Central School 
+Location 0 
+Capacity 250 
+Category 0 
+Latitude 13.044403 
+Longitude 123.457286"
+"POINT (123.444675 13.047211)",BINODEGAHAN ES,"SCHOOL (Public) 
+
+FID 6 
+Id 7 
+Evac_Code 
+EvacCenter La Medalla Elementary School 
+Location 0 
+Capacity 140 
+Category 0 
+Latitude 13.047211 
+Longitude 123.444675"
+"POINT (123.514811 13.067618)",SUKIP ES,"SCHOOL (Public) 
+
+FID 7 
+Id 8 
+Evac_Code 
+EvacCenter Sukip Elementary School 
+Location 0 
+Capacity 80 
+Category 0 
+Latitude 13.067618 
+Longitude 123.514811"
+"POINT (123.490586 13.072097)",MALAPAY HS,"SCHOOL (Public) 
+
+FID 8 
+Id 9 
+Evac_Code 
+EvacCenter Malapay Elementary School 
+Location 0 
+Capacity 125 
+Category 0 
+Latitude 13.072097 
+Longitude 123.490586"
+"POINT (123.461864 13.086464)",AGOL ES,"SCHOOL (Public)
+
+FID 9 
+Id 10 
+Evac_Code 
+EvacCenter Agol Elementary School 
+Location 0 
+Capacity 100 
+Category 0 
+Latitude 13.086464 
+Longitude 123.461864"
+"POINT (123.500205 13.026739)",MAMLAD ES,"SCHOOL (Public) 
+
+FID 10 
+Id 11 
+Evac_Code 
+EvacCenter Mamlad Elementary School 
+Location 0 
+Capacity 100 
+Category 0 
+Latitude 13.026739 
+Longitude 123.500205"
+"POINT (123.485698 13.050347)",ALABANGPURO HS,"SCHOOL (Public) 
+
+FID 11 
+Id 12 
+Evac_Code 
+EvacCenter Alabangpuro Elementary School 
+Location 0 
+Capacity 100 
+Category 0 
+Latitude 13.049767 
+Longitude 123.485905"
+"POINT (123.404682 13.047222)",BASICAO COASTAL ES,"SCHOOL (Public) 
+
+FID 12 
+Id 13 
+Evac_Code 
+EvacCenter Basicao Coastal Elementary School 
+Location 0 
+Capacity 120 
+Category 0 
+Latitude 13.047222 
+Longitude 123.404682"
+"POINT (123.511542 13.040754)",RAWIS ES,"SCHOOL (Public) 
+
+FID 13 
+Id 14 
+Evac_Code 
+EvacCenter Rawis Elementary School 
+Location 0 
+Capacity 90 
+Category 0 
+Latitude 13.040754 
+Longitude 123.511542"
+"POINT (123.496518 13.05592)",MACASITAS ES,"SCHOOL (Public) 
+
+FID 14 
+Id 15 
+Evac_Code 
+EvacCenter Macasitas Elementary School 
+Location 0 
+Capacity 80 
+Category 0 
+Latitude 13.05592 
+Longitude 123.496518"
+"POINT (123.505548 13.083624)",Salvacion ES,"SCHOOL (Public) 
+
+FID 15 
+Id 16 
+Evac_Code 
+EvacCenter Salvacion Elementary School 
+Location 0 
+Capacity 70 
+Category 0 
+Latitude 13.083624 
+Longitude 123.505548"
+"POINT (123.491935 13.102897)",Tibabo ES,"SCHOOL (Public) 
+
+FID 16 
+Id 17 
+Evac_Code 
+EvacCenter Tibabo Elementary School 
+Location 0 
+Capacity 140 
+Category 0 
+Latitude 13.102897 
+Longitude 123.491935"
+"POINT (123.410157 13.087033)",Panganiran ES,"SCHOOL (Public) 
+
+FID 17 
+Id 18 
+Evac_Code 
+EvacCenter Panganiran Elementary School 
+Location 0 
+Capacity 150 
+Category 0 
+Latitude 13.087033 
+Longitude 123.410157"
+"POINT (123.529638 13.050375)",Buyo ES,"SCHOOL (Public) 
+
+FID 18 
+Id 19 
+Evac_Code 
+EvacCenter Buyo Elementary School 
+Location 0 
+Capacity 55 
+Category 0 
+Latitude 13.050375 
+Longitude 123.529638"
+"POINT (123.476396 13.059784)",Nablangbulod ES,"SCHOOL (Public) 
+
+FID 19 
+Id 20 
+Evac_Code 
+EvacCenter Nablangbulod Elementary School 
+Location 0 
+Capacity 55 
+Category 0 
+Latitude 13.059784 
+Longitude 123.476396"
+"POINT (123.439386 13.091788)",Flores ES,"SCHOOL (Public) 
+
+FID 20 
+Id 21 
+Evac_Code 
+EvacCenter Flores Elementary School 
+Location 0 
+Capacity 80 
+Category 0 
+Latitude 13.091788 
+Longitude 123.439386"
+"POINT (123.487848 13.080943)",Basicao Interior ES,"SCHOOL (Public) 
+
+FID 21 
+Id 22 
+Evac_Code 
+EvacCenter Basicao Interior Elementary School 
+Location 0 
+Capacity 80 
+Category 0 
+Latitude 13.080943 
+Longitude 123.487848"
+"POINT (123.469715 13.111998)",Palapas ES,"SCHOOL (Public) 
+
+FID 22 
+Id 23 
+Evac_Code 
+EvacCenter Palapas Elementary School 
+Location 0 
+Capacity 80 
+Category 0 
+Latitude 13.111998 
+Longitude 123.469715"
+"POINT (123.491552 13.011444)",Lawinon ES,"SCHOOL (Public) 
+
+FID 23 
+Id 24 
+Evac_Code 
+EvacCenter Lawinon Elementary School 
+Location 0 
+Capacity 70 
+Category 0 
+Latitude 13.011444 
+Longitude 123.491552"
+"POINT (123.532203 13.077718)",Matanglad ES,"SCHOOL (Public) 
+
+FID 24 
+Id 25 
+Evac_Code 
+EvacCenter Matanglad Elementary School 
+Location 0 
+Capacity 80 
+Category 0 
+Latitude 13.077718 
+Longitude 123.532203"
+"POINT (123.480805 12.989386)",Buenavista EC,"SCHOOL (Public) 
+
+FID 25 
+Id 26 
+Evac_Code 
+EvacCenter Buenavista Evac. Center 
+Location 0 
+Capacity 120 
+Category 0 
+Latitude 12.989386 
+Longitude 123.480805"
+"POINT (123.465327 13.109744)",Sitio Papantayan,"SCHOOL (Public) 
+
+FID 26 
+Id 27 
+Evac_Code 
+EvacCenter Sitio Papantayan (Palapas) DDC 
+Location 0 
+Capacity 100 
+Category 0 
+Latitude 13.109744 
+Longitude 123.458335"
+"POINT (123.453052 13.043625)",Caratagan BH,"SCHOOL (Public) 
+
+FID 27 
+Id 28 
+Evac_Code 
+EvacCenter Caratagan Barangay Hall 
+Location 0 
+Capacity 30 
+Category 0 
+Latitude 13.043625 
+Longitude 123.453052"
+"POINT (123.455219 13.046383)",Seventh Day Adventist,"SCHOOL (Public) 
+
+FID 28 
+Id 29 
+Evac_Code 
+EvacCenter Seventh Day Adventist Church 
+Location 0 
+Capacity 70 
+Category 0 
+Latitude 13.046383 
+Longitude 123.455219"
+"POINT (123.453556 13.043838)",Mormons,"SCHOOL (Public) 
+
+FID 29 
+Id 30 
+Evac_Code 
+EvacCenter Mormons 
+Location 0 
+Capacity 60 
+Category 0 
+Latitude 13.043838 
+Longitude 123.453556"
+"POINT (123.446361 13.028495)",Our Lady Of Salvation,"SCHOOL (Public) 
+
+FID 30 
+Id 31 
+Evac_Code 
+EvacCenter Our Lady Of Salvation Parish Church 
+Location 0 
+Capacity 50 
+Category 0 
+Latitude 13.028495 
+Longitude 123.446361"
+"POINT (123.517172 13.066563)",Sukip Day Care,"SCHOOL (Public) 
+
+FID 31 
+Id 32 
+Evac_Code 
+EvacCenter Sukip Day Care Center 
+Location 0 
+Capacity 20 
+Category 0 
+Latitude 13.066563 
+Longitude 123.517172"
+"POINT (123.517455 13.066594)",Sukip BH,"SCHOOL (Public) 
+
+FID 32 
+Id 33 
+Evac_Code 
+EvacCenter Sukip Barangay Hall 
+Location 0 
+Capacity 45 
+Category 0 
+Latitude 13.066594 
+Longitude 123.517455"
+"POINT (123.404362 13.046048)",Basicao Coastal Day Care,"SCHOOL (Public) 
+
+FID 33 
+Id 34 
+Evac_Code 
+EvacCenter Basicao Coastal Day Care Center 
+Location 0 
+Capacity 20 
+Category 0 
+Latitude 13.046048 
+Longitude 123.404362"
+"POINT (123.495147 13.056612)",Macasitas Day care,"SCHOOL (Public) 
+
+FID 34 
+Id 35 
+Evac_Code 
+EvacCenter Macasitas Day care 
+Location 0 
+Capacity 35 
+Category 0 
+Latitude 13.056612 
+Longitude 123.495147"
+"POINT (123.456376 13.044222)",Municipal Multi-Purpose Hall,"SCHOOL (Public) 
+
+FID 35 
+Id 36 
+Evac_Code 
+EvacCenter Municipal Multi-Purpose Hall 
+Location 0 
+Capacity 120 
+Category 0 
+Latitude 13.044222 
+Longitude 123.456376"
+"POINT (123.44409 13.047189)",La Medalla Day Care,"SCHOOL (Public) 
+
+FID 36 
+Id 37 
+Evac_Code 
+EvacCenter La Medalla Day Care 
+Location 0 
+Capacity 36 
+Category 0 
+Latitude 13.047189 
+Longitude 123.44409"`;
+
+// Parse CSV data
+const parseCSV = (csv: string) => {
+  const lines = csv.split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  const data = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '') continue;
+    
+    const values = lines[i].split(',');
+    const obj: any = {};
+    
+    for (let j = 0; j < headers.length; j++) {
+      let value = values[j]?.trim() || '';
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1);
       }
-    }, 800);
-
-    return {
-      on: (event: string, callback: Function) => {
-        if (!eventHandlers[event]) eventHandlers[event] = [];
-        eventHandlers[event].push(callback);
-        return this;
-      },
-      eachLayer: (callback: Function) => {
-        setTimeout(() => {
-          const mockLayers = [
-            L.marker([13.037063508747957, 123.45890718599736]),
-            L.polyline([[13.037063508747957, 123.45890718599736], [13.1391, 123.7437]]),
-            L.polygon([[13.03, 123.45], [13.04, 123.45], [13.04, 123.46], [13.03, 123.46]])
-          ];
-          mockLayers.forEach(layer => callback(layer));
-        }, 0);
-        return this;
-      },
-      getBounds: () => {
-        return L.latLngBounds(
-          L.latLng(13.03, 123.45),
-          L.latLng(13.14, 123.75)
-        );
-      }
-    };
+      obj[headers[j]] = value;
+    }
+    
+    data.push(obj);
   }
+  
+  return data;
+};
+
+// Extract coordinates from WKT
+const extractCoordinates = (wkt: string) => {
+  const match = wkt.match(/POINT\s*\(\s*([0-9.]+)\s+([0-9.]+)\s*\)/i);
+  if (match) {
+    return [parseFloat(match[1]), parseFloat(match[2])];
+  }
+  return null;
 };
 
 export default function InteractiveMap() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
-  const [kmlLayers, setKmlLayers] = useState<KMLLayer[]>([]);
+  const [layers, setLayers] = useState<Layer[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -211,6 +571,11 @@ export default function InteractiveMap() {
     };
   }, [mapCenter]);
 
+  // Load CSV data on mount
+  useEffect(() => {
+    loadCSVData();
+  }, []);
+
   // Reset success message after timeout
   useEffect(() => {
     if (success) {
@@ -218,6 +583,52 @@ export default function InteractiveMap() {
       return () => clearTimeout(timer);
     }
   }, [success]);
+
+  const loadCSVData = () => {
+    try {
+      const parsedData = parseCSV(csvData);
+      const layerGroup = L.layerGroup();
+      
+      parsedData.forEach((item, index) => {
+        const coords = extractCoordinates(item.WKT);
+        if (coords) {
+          const [lng, lat] = coords;
+          const marker = L.marker([lat, lng]);
+          
+          // Format popup content
+          const popupContent = `
+            <div class="font-semibold text-blue-800">${item.name}</div>
+            <div class="text-sm mt-1">${item.description.replace(/\n/g, '<br>')}</div>
+          `;
+          
+          marker.bindPopup(popupContent);
+          layerGroup.addLayer(marker);
+        }
+      });
+
+      const newLayer: Layer = {
+        id: `csv-${Date.now()}`,
+        name: 'Evacuation Centers',
+        layer: layerGroup,
+        visible: true,
+        color: '#3b82f6',
+        fileName: 'evacuation_centers.csv',
+        type: 'csv'
+      };
+
+      setLayers([newLayer]);
+      layerGroup.addTo(mapInstance.current!);
+      
+      // Fit bounds to show all markers
+      const group = new L.FeatureGroup(Array.from(layerGroup.getLayers()));
+      mapInstance.current!.fitBounds(group.getBounds().pad(0.1));
+      
+      setSuccess('CSV data loaded successfully');
+    } catch (err) {
+      console.error('Error loading CSV data:', err);
+      setError('Failed to load CSV data');
+    }
+  };
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -227,7 +638,7 @@ export default function InteractiveMap() {
     setError(null);
     setSuccess(null);
 
-    const newLayers: KMLLayer[] = [];
+    const newLayers: Layer[] = [];
     
     try {
       for (let i = 0; i < files.length; i++) {
@@ -247,63 +658,62 @@ export default function InteractiveMap() {
               const blob = new Blob([kmlText], { type: 'application/vnd.google-earth.kml+xml' });
               const url = URL.createObjectURL(blob);
 
-              const layer = mockOmnivore.kml(url);
+              // Simple KML parser for demonstration
+              const layerGroup = L.layerGroup();
               
-              layer.on('ready', (layerGroup: L.LayerGroup) => {
-                layerGroup.eachLayer((l: any) => {
-                  const color = colors[newLayers.length % colors.length];
-
-                  if (l instanceof L.Marker) {
-                    if (l.options.properties?.name) {
-                      const content = `<b>${l.options.properties.name}</b><br>${l.options.properties.description || ''}`;
-                      l.bindPopup(content);
-                    }
-                  } else if (l instanceof L.Polyline) {
-                    l.setStyle({ color, weight: 3, opacity: 0.9 });
-                    l.bindPopup(l.options.properties?.name || 'Feature');
-                  } else if (l instanceof L.Polygon) {
-                    l.setStyle({ 
-                      color, 
-                      weight: 2, 
-                      opacity: 0.9, 
-                      fillOpacity: 0.3,
-                      fillColor: color
-                    });
-                    l.bindPopup(l.options.properties?.name || 'Polygon');
-                  }
-                });
-
-                // Only add to map if it's the first layer or if we want all layers visible by default
-                if (newLayers.length === 0) {
-                  layerGroup.addTo(mapInstance.current!);
+              // Mock parsing - in real app, you'd use a proper KML parser
+              const mockMarkers = [
+                L.marker([13.037063508747957, 123.45890718599736], { 
+                  properties: { name: "Primary Location", description: "Main operational site" } 
+                }),
+                L.marker([13.1391, 123.7437], { 
+                  properties: { name: "Secondary Site", description: "Backup facility" } 
+                })
+              ];
+              
+              const polyline = L.polyline(
+                [[13.037063508747957, 123.45890718599736], [13.1391, 123.7437]],
+                { 
+                  color: '#3b82f6', 
+                  weight: 3,
+                  properties: { name: "Route Alpha", description: "Main transportation route" } 
                 }
-
-                const bounds = layerGroup.getBounds();
-                if (bounds.isValid()) {
-                  if (newLayers.length === 0) {
-                    mapInstance.current!.fitBounds(bounds, { padding: [50, 50] });
-                  }
+              );
+              
+              const polygon = L.polygon(
+                [[13.03, 123.45], [13.04, 123.45], [13.04, 123.46], [13.03, 123.46]],
+                { 
+                  color: '#ef4444', 
+                  weight: 2, 
+                  fillColor: '#ef4444',
+                  fillOpacity: 0.3,
+                  properties: { name: "Exclusion Zone", description: "Restricted area" } 
                 }
+              );
 
-                const newLayer: KMLLayer = {
-                  id: `${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
-                  name: file.name.replace('.kml', ''),
-                  layer: layerGroup,
-                  visible: newLayers.length === 0, // Only first layer visible by default
-                  color: colors[newLayers.length % colors.length],
-                  fileName: file.name,
-                };
-
-                newLayers.push(newLayer);
-                resolve();
+              mockMarkers.forEach(marker => {
+                if (marker.options.properties) {
+                  marker.bindPopup(`<b>${marker.options.properties.name}</b><br>${marker.options.properties.description}`);
+                }
+                layerGroup.addLayer(marker);
               });
+              layerGroup.addLayer(polyline);
+              layerGroup.addLayer(polygon);
 
-              layer.on('error', (err: Error) => {
-                console.error('KML load error:', err);
-                setError(`Failed to load ${file.name}`);
-                URL.revokeObjectURL(url);
-                reject(err);
-              });
+              const newLayer: Layer = {
+                id: `${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
+                name: file.name.replace('.kml', ''),
+                layer: layerGroup,
+                visible: true,
+                color: colors[newLayers.length % colors.length],
+                fileName: file.name,
+                type: 'kml'
+              };
+
+              newLayers.push(newLayer);
+              layerGroup.addTo(mapInstance.current!);
+              
+              resolve();
             } catch (err) {
               console.error('Error processing KML:', err);
               setError(`Error processing ${file.name}`);
@@ -322,7 +732,7 @@ export default function InteractiveMap() {
 
       // Update state with all new layers
       if (newLayers.length > 0) {
-        setKmlLayers(prev => [...prev, ...newLayers]);
+        setLayers(prev => [...prev, ...newLayers]);
         setSuccess(`Successfully loaded ${newLayers.length} file${newLayers.length > 1 ? 's' : ''}`);
       }
     } catch (err) {
@@ -336,7 +746,7 @@ export default function InteractiveMap() {
   }, []);
 
   const toggleLayerVisibility = useCallback((id: string) => {
-    setKmlLayers(prev =>
+    setLayers(prev =>
       prev.map(layer => {
         if (layer.id === id) {
           const newVisible = !layer.visible;
@@ -353,7 +763,7 @@ export default function InteractiveMap() {
   }, []);
 
   const removeLayer = useCallback((id: string) => {
-    setKmlLayers(prev => {
+    setLayers(prev => {
       const layer = prev.find(l => l.id === id);
       if (layer && mapInstance.current) {
         mapInstance.current.removeLayer(layer.layer);
@@ -363,14 +773,15 @@ export default function InteractiveMap() {
   }, []);
 
   const zoomToLayer = useCallback((id: string) => {
-    const layer = kmlLayers.find(l => l.id === id);
+    const layer = layers.find(l => l.id === id);
     if (layer && mapInstance.current) {
-      const bounds = layer.layer.getBounds();
+      const group = new L.FeatureGroup(Array.from(layer.layer.getLayers()));
+      const bounds = group.getBounds();
       if (bounds.isValid()) {
         mapInstance.current.flyToBounds(bounds, { padding: [50, 50], duration: 1 });
       }
     }
-  }, [kmlLayers]);
+  }, [layers]);
 
   const handleZoomIn = () => mapInstance.current?.zoomIn();
   const handleZoomOut = () => mapInstance.current?.zoomOut();
@@ -424,7 +835,7 @@ export default function InteractiveMap() {
   };
 
   return (
-    <div className="w-full h-full bg-white/40 backdrop-blur-md rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden">
+    <div className="w-full h-screen bg-white/40 backdrop-blur-md rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-white/50">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -560,15 +971,15 @@ export default function InteractiveMap() {
         </div>
 
         {/* Layers Panel */}
-        {kmlLayers.length > 0 && (
+        {layers.length > 0 && (
           <div className="w-72 bg-white/95 backdrop-blur-sm border-l border-white/50 p-4 overflow-y-auto max-h-full">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-gray-700" />
-                <h3 className="font-bold text-gray-800">Layers ({kmlLayers.length})</h3>
+                <h3 className="font-bold text-gray-800">Layers ({layers.length})</h3>
               </div>
               <button
-                onClick={() => kmlLayers.forEach(layer => removeLayer(layer.id))}
+                onClick={() => layers.forEach(layer => removeLayer(layer.id))}
                 className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1"
                 title="Remove all layers"
               >
@@ -577,7 +988,7 @@ export default function InteractiveMap() {
               </button>
             </div>
             <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
-              {kmlLayers.map((layer) => (
+              {layers.map((layer) => (
                 <div
                   key={layer.id}
                   className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-all"
@@ -588,9 +999,14 @@ export default function InteractiveMap() {
                       style={{ backgroundColor: layer.color }}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate" title={layer.fileName}>
-                        {layer.name}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-sm font-semibold text-gray-800 truncate" title={layer.fileName}>
+                          {layer.name}
+                        </p>
+                        {layer.type === 'csv' && (
+                          <FileText className="w-3 h-3 text-blue-500" />
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 truncate mt-1" title={layer.fileName}>
                         {layer.fileName}
                       </p>
@@ -631,7 +1047,7 @@ export default function InteractiveMap() {
       </div>
 
       {/* Empty State */}
-      {kmlLayers.length === 0 && !uploading && (
+      {layers.length === 0 && !uploading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center bg-white/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg max-w-md">
             <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
